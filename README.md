@@ -16,3 +16,6 @@ Supported Device families
 +   ST
      -    [STM32F2xx](http://www.st.com/internet/mcu/subclass/1520.jsp)
      -    [STM32F4xx](http://www.st.com/internet/mcu/subclass/1521.jsp)
+
++ ON Semiconductor
+     -    [Q32M210](http://www.onsemi.com/PowerSolutions/product.do?id=Q32M210)

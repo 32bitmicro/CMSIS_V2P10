@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="iso-8859-1"?>
+
+<workspace>
+  <project>
+    <path>$WS_DIR$\eeprom.ewp</path>
+  </project>
+  <project>
+    <path>$WS_DIR$\..\..\..\syslib\IAR\syslib.ewp</path>
+  </project>
+  <project>
+    <path>$WS_DIR$\..\..\..\eepromlib\IAR\eepromlib.ewp</path>
+  </project>
+  <batchBuild/>
+</workspace>
+
+

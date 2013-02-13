@@ -1,0 +1,144 @@
+#-----------------------------------------------------------------------------
+# Copyright (c) 2012 Semiconductor Components Industries, LLC
+# (d/b/a ON Semiconductor). All Rights Reserved.
+#
+# This code is the property of ON Semiconductor and may not be redistributed
+# in any form without prior written permission from ON Semiconductor. The
+# terms of use and warranty for this code are covered by contractual
+# agreements between ON Semiconductor and the licensee.
+#-----------------------------------------------------------------------------
+# Makefile.rules
+# - Core Makefile used to build all sample projects and libraries.
+#-----------------------------------------------------------------------------
+# $Revision: 1.3 $
+# $Date: 2012/04/26 18:50:01 $
+#-----------------------------------------------------------------------------
+
+MINIMAL = 1
+
+CC = arm-none-eabi-gcc
+LD = arm-none-eabi-ld
+AR = arm-none-eabi-ar
+OBJCOPY = arm-none-eabi-objcopy
+
+# If this is cs-make, use cs-rm to remove files/directories for Windows
+# compatibility.
+ifeq ($(findstring cs-make, $(MAKE)), cs-make)
+RM = cs-rm
+MKDIR = mkdir
+FixPath = $(subst /,\,$1)
+else
+RM = rm
+MKDIR = mkdir -p
+FixPath = $1
+endif
+
+CFLAGS = -g -mcpu=cortex-m3 -msoft-float -mthumb -fno-common -I$(LEVEL)/../Include -I$(LEVEL)/../../../../CMSIS/Include -I.. -DQ32_CID=0x050101
+
+# Default to use the q32m210-flash.ld linker script if another one is not defined.
+LDSCRIPT ?= -Tq32m210-flash.ld
+
+ifdef CS3
+MINIMAL = 0
+endif
+
+ifeq ($(MINIMAL), 1)
+GCC_VARIANT = GCC_Minimal
+else
+GCC_VARIANT = GCC_CS3
+endif
+
+LDFLAGS = -L "$(LEVEL)/../Source/Templates/$(GCC_VARIANT)" $(LDSCRIPT)
+
+ifeq ($(MINIMAL), 1)
+# Don't use startup files in the minimal variant -- we use our own crt.c.
+LDFLAGS += -nostartfiles
+endif
+
+ifdef LIBS
+    LIBS := $(LIBS:%=$(LEVEL)/lib/GCC/%.a)
+endif
+
+BUILDDIR ?= build
+SRCDIR ?= ..
+
+export BUILDDIR
+export LEVEL
+
+all::
+
+# Find all of the C source files in the source directory
+C_SOURCES := $(wildcard $(SRCDIR)/*.c)
+C_COMMON_SOURCES := $(wildcard $(SRCDIR)/../common/*.c)
+
+# Determine the corresponding set of object file names
+C_BASENAME_SOURCES := $(notdir $(sort $(basename $(C_SOURCES))))
+C_OBJS := $(C_BASENAME_SOURCES:%=$(BUILDDIR)/%.o)
+
+C_COMMON_BASENAME_SOURCES := $(notdir $(sort $(basename $(C_COMMON_SOURCES))))
+C_COMMON_OBJS := $(C_COMMON_BASENAME_SOURCES:%=$(BUILDDIR)/%.o)
+
+$(C_OBJS): $(BUILDDIR)/%.o: $(SRCDIR)/%.c
+	$(CC) -c $(CFLAGS) $< -o $@
+
+$(C_COMMON_OBJS): $(BUILDDIR)/%.o: $(SRCDIR)/../common/%.c
+	$(CC) -c $(CFLAGS) $< -o $@
+
+# Find all of the assembly source files in the source directory
+ASM_SOURCES := $(wildcard *.s)
+
+# Determine the corresponding set of object file names
+ASM_BASENAME_SOURCES := $(sort $(basename $(ASM_SOURCES)))
+ASM_OBJS := $(ASM_BASENAME_SOURCES:%=$(BUILDDIR)/%.o)
+
+$(ASM_OBJS): $(BUILDDIR)/%.o: %.s
+	$(CC) -c $(CFLAGS) $< -o $@
+
+ifdef BUILD_LIBRARY
+
+LIBDIR = $(LEVEL)/lib/GCC
+OUTPUT = $(LIBDIR)/$(APP).a
+
+$(OUTPUT): $(C_OBJS) $(ASM_OBJS) $(LIBDIR)
+	$(RM) -f $(OUTPUT)
+	$(AR) crs $(OUTPUT) $(C_OBJS) $(ASM_OBJS)
+
+$(LIBDIR):
+	$(MKDIR) $(call FixPath, $(LIBDIR))
+
+else
+
+OUTPUT = $(BUILDDIR)/$(APP).hex
+
+TEMPLATE_DIR = $(LEVEL)/../Source/Templates
+
+$(BUILDDIR)/startup_q32m210.o: $(TEMPLATE_DIR)/$(GCC_VARIANT)/startup_q32m210.s
+	$(CC) -c $(CFLAGS) $< -o $@
+
+$(BUILDDIR)/system_q32m210.o: $(TEMPLATE_DIR)/system_q32m210.c
+	$(CC) -c $(CFLAGS) $< -o $@
+
+$(BUILDDIR)/crt.o: $(TEMPLATE_DIR)/$(GCC_VARIANT)/crt.c
+	$(CC) -c $(CFLAGS) $< -o $@
+
+DEPS := $(C_OBJS) $(C_COMMON_OBJS) $(BUILDDIR)/startup_q32m210.o $(BUILDDIR)/system_q32m210.o $(LIBS)
+
+ifeq ($(MINIMAL), 1)
+# In the minimal variant, add our crt.c.
+DEPS += $(BUILDDIR)/crt.o
+endif
+
+$(OUTPUT): $(DEPS)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $(BUILDDIR)/$(APP).out $(DEPS) $(EXTRALIBS)
+	$(OBJCOPY) -O ihex $(BUILDDIR)/$(APP).out $@
+
+endif # BUILD_LIBRARY
+
+all:: $(BUILDDIR) $(OUTPUT)
+
+# Make the build directory
+$(BUILDDIR):
+	$(MKDIR) $(BUILDDIR)
+
+clean:
+	$(RM) -rf $(OUTPUT) $(BUILDDIR)
